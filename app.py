@@ -1,27 +1,113 @@
 
-
 import streamlit as st
 import pandas as pd
-import numpy as np
+from sklearn.linear_model import LinearRegression
 from pathlib import Path
 
-from sklearn.model_selection import train_test_split
-from sklearn.linear_model import LinearRegression
-from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
-
+# Page configuration
 st.set_page_config(
-    page_title="House Price Prediction",
+    page_title="House Price Predictor",
     page_icon="🏠",
-    layout="wide"
+    layout="centered"
 )
 
-st.title("🏠 House Price Prediction")
-st.write(
-    "Predict house prices using Machine Learning "
-    "and Linear Regression."
+# Clean UI styling
+st.markdown("""
+<style>
+    .block-container {
+        max-width: 650px;
+        padding-top: 3rem;
+    }
+    div.stButton > button {
+        width: 100%;
+        border-radius: 10px;
+        height: 3em;
+        font-weight: bold;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+st.title("🏠 House Price Predictor")
+st.caption("Estimate your property's price in seconds.")
+
+# Load dataset and train model
+@st.cache_resource
+def load_model():
+    file_path = Path("house_price_prediction_dataset.csv")
+
+    if not file_path.exists():
+        return None
+
+    df = pd.read_csv(file_path)
+
+    required = ["Area_sqft", "Age_years", "Price_Lakh_INR"]
+    if not all(col in df.columns for col in required):
+        return None
+
+    df = df[required].apply(
+        pd.to_numeric, errors="coerce"
+    ).dropna()
+
+    if len(df) < 2:
+        return None
+
+    X = df[["Area_sqft", "Age_years"]]
+    y = df["Price_Lakh_INR"]
+
+    model = LinearRegression()
+    model.fit(X, y)
+
+    return model
+
+model = load_model()
+
+if model is None:
+    st.error(
+        "Dataset not found or invalid. Please add "
+        "'house_price_prediction_dataset.csv' "
+        "with Area_sqft, Age_years, and Price_Lakh_INR columns."
+    )
+    st.stop()
+
+# User inputs
+st.subheader("Enter Property Details")
+
+area = st.number_input(
+    "House Area (sq. ft.)",
+    min_value=1,
+    max_value=100000,
+    value=1000,
+    step=100
 )
 
-st.sidebar.header("Upload Dataset")
+age = st.number_input(
+    "House Age (years)",
+    min_value=0,
+    max_value=200,
+    value=5,
+    step=1
+)
+
+# Prediction
+if st.button("🔮 Predict House Price", type="primary"):
+    input_data = pd.DataFrame({
+        "Area_sqft": [area],
+        "Age_years": [age]
+    })
+
+    price = model.predict(input_data)[0]
+
+    if price < 0:
+        st.warning(
+            "The model returned an unrealistic negative price. "
+            "Please check your dataset."
+        )
+    else:
+        st.success("Prediction Complete!")
+        st.markdown("### Estimated House Price")
+        st.markdown(f"## ₹ {price:.2f} Lakh")
+        st.caption("This is an estimated price, not a guaranteed market value.")
+
 
 uploaded_file = st.sidebar.file_uploader(
     "Upload your house price CSV file",
